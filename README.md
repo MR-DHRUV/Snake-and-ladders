@@ -1,5 +1,7 @@
 # Snakes and Ladders Game
 
+### Try it out [https://snake-and-ladders-ten.vercel.app/](https://snake-and-ladders-ten.vercel.app/)
+
 ## Table of Contents
 - [Overview](#overview)
 - [Architecture](#architecture)
@@ -136,7 +138,6 @@ graph TD
         User[/user - Get User Info/]
         CreateGame[/game - Create New Game/]
         GetGames[/games - Get Past Games/]
-        StartGame[/game/start - Start Game/]
     end
 ```
 
