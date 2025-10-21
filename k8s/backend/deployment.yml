@@ -1,0 +1,65 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: snl-backend-deployment
+  namespace: snl
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: snl-backend
+  template:
+    metadata:
+      name: snl-backend-pod
+      labels:
+        app: snl-backend
+    spec:
+      containers:
+        - name: snl-backend-container
+          image: localhost:55055/snl-backend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8081
+              protocol: TCP
+            - name: ws
+              containerPort: 9999
+              protocol: TCP
+          env:
+            - name: GoogleClientID
+              valueFrom:
+                secretKeyRef:
+                  name: snl-secret
+                  key: GoogleClientID
+            - name: GoogleClientSecret
+              valueFrom:
+                secretKeyRef:
+                  name: snl-secret
+                  key: GoogleClientSecret
+            - name: GoogleRedirectURL
+              valueFrom:
+                secretKeyRef:
+                  name: snl-secret
+                  key: GoogleRedirectURL
+            - name: MongoURI
+              valueFrom:
+                secretKeyRef:
+                  name: snl-secret
+                  key: MongoURI
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "1"
+            limits:
+              memory: "1024Mi"
+              cpu: "2"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /health # endpoint to check
+              port: http
+            initialDelaySeconds: 20 # wait before first probe
+            periodSeconds: 30 # probe frequency

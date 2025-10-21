@@ -1,0 +1,36 @@
+kind: Ingress
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: nginx-snl-ingress
+  namespace: snl
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /api(/|$)(.*) # Rewrite /api to /
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: snl-backend-service
+                port:
+                  number: 8081
+          - path: /ws(/|$)(.*) # Rewrite /ws to /
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: snl-backend-service
+                port:
+                  number: 9999
+          # Frontend (root)
+          - path: /()(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: snl-frontend-service
+                port:
+                  number: 5173
+
+# Expose the ingress controller
+# kubectl port-forward -n ingress-nginx service/ingress-nginx-controller 5000:80

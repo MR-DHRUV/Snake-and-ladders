@@ -1,0 +1,14 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: snl-frontend-service
+  namespace: snl
+spec:
+  selector:
+    app: snl-frontend # name of the pod which we want to expose
+  ports:
+    - name: http
+      protocol: TCP
+      port: 5173
+      targetPort: 5173
+  type: ClusterIP

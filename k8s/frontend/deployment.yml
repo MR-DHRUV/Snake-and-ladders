@@ -1,0 +1,46 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: snl-frontend-deployment
+  namespace: snl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: snl-frontend
+  template:
+    metadata:
+      name: snl-frontend-pod
+      labels:
+        app: snl-frontend
+    spec:
+      containers:
+        - name: snl-frontend-container
+          image: localhost:55055/snl-frontend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 5173
+              protocol: TCP
+          env:
+            - name: VITE_GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: snl-secret
+                  key: GoogleClientID
+            - name: VITE_GOOGLE_REDIRECT_URI
+              valueFrom:
+                secretKeyRef:
+                  name: snl-secret
+                  key: GoogleRedirectURL
+            - name: VITE_API_URL
+              value: "http://localhost:5000/api"
+            - name: VITE_WS_URL
+              value: "http://localhost:5000/ws"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1024Mi"
+              cpu: "1"
