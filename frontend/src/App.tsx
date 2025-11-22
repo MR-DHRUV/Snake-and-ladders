@@ -17,6 +17,7 @@ const queryClient = new QueryClient()
 
 function App() {
     const googleCallbackURL: string = (window as any).__ENV__?.VITE_GOOGLE_REDIRECT_URI || import.meta.env.VITE_GOOGLE_REDIRECT_URI;
+    const googleCallbackPath = new URL(googleCallbackURL).pathname;
 
     return (
         <ErrorBoundary>
@@ -29,7 +30,7 @@ function App() {
                             <Route path="/game/:id" element={<Game />} />
                         </Route>
                         <Route path="/login" element={<Auth />} />
-                        <Route path={googleCallbackURL} element={<AuthCallback />} />
+                        <Route path={googleCallbackPath} element={<AuthCallback />} />
                         <Route path="*" element={<NotFound />} />
                     </Routes>
                 </BrowserRouter>
