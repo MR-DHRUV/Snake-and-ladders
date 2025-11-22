@@ -53,12 +53,12 @@ type Game struct {
 	DiceCount   int                 `bson:"dice_count" json:"dice_count"`
 	GameBoard   *Board              `bson:"game_board" json:"game_board"`
 	Status      int                 `bson:"status" json:"status"`
-	CurrentTurn int                 `bson:"current_turn" json:"-"`
+	CurrentTurn int                 `bson:"current_turn" json:"current_turn"`
 	Players     []*Player           `bson:"players" json:"players"`
 	Winners     []*Player           `bson:"winners" json:"winners"`
-	DiceManager *DiceManager        `bson:"dice_manager" json:"-"`
+	DiceManager *DiceManager        `bson:"dice_manager" json:"dice_manager"`
 	LastTurn    *LastTurn           `bson:"last_turn" json:"last_turn,omitempty"`
-	Messages    []utils.ChatMessage `bson:"messages" json:"messages"`
+	Messages    []utils.ChatMessage `bson:"-" json:"-"`
 }
 
 type GameResponse struct {
@@ -136,10 +136,15 @@ func (g *Game) GetNextTurn() string {
 }
 
 func (g *Game) IsGameOver() bool {
-	if g.Status != InProgress {
-		return false
+	if g.Status == Abandoned {
+		return true
 	}
-	if len(g.Winners) == g.MaxWinners || len(g.Players) < 2 {
+
+	if g.Status == Finished {
+		return true
+	}
+
+	if g.Status == InProgress && (len(g.Winners) == g.MaxWinners || len(g.Players) < 2) {
 		g.Status = Finished
 		return true
 	}
@@ -168,17 +173,17 @@ func (g *Game) StartGame(user_id string) error {
 	return nil
 }
 
-func (g *Game) NextTurn(_id string) (bool, bool, error) {
+func (g *Game) NextTurn(_id string) (bool, error) {
 	if len(g.Players) == 0 {
-		return false, false, errors.New("no users in the turn queue")
+		return false, errors.New("no users in the turn queue")
 	}
 
 	if g.Status != InProgress {
-		return false, false, errors.New("game is not started")
+		return false, errors.New("game is not started")
 	}
 
 	if g.GetNextTurn() != _id {
-		return false, false, errors.New("it's not your turn")
+		return false, errors.New("it's not your turn")
 	}
 
 	currUser := g.Players[g.CurrentTurn]
@@ -218,7 +223,7 @@ func (g *Game) NextTurn(_id string) (bool, bool, error) {
 		g.Messages = append(g.Messages, getSystemMessage(fmt.Sprintf("%s's turn", g.Players[g.CurrentTurn].Name)))
 	}
 
-	return true, g.IsGameOver(), nil
+	return true, nil
 }
 
 func (g *Game) GetGameState() GameStateChangeResponse {
