@@ -13,7 +13,10 @@ import (
 )
 
 func main() {
+	// Init Db connections
 	db.InitMongo()
+	db.InitRedis()
+
 	utils.GetLogger().Info("Connected to MongoDB")
 
 	var wg sync.WaitGroup

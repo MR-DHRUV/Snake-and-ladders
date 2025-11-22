@@ -4,43 +4,38 @@ set -e
 # -------------------------
 # CONFIG
 # -------------------------
-REGISTRY_URL=localhost:55055
+CLUSTER_NAME=kind
 NAMESPACE=snl
-BACKEND_IMAGE="$REGISTRY_URL/snl-backend:latest"
-FRONTEND_IMAGE="$REGISTRY_URL/snl-frontend:latest"
+
+BACKEND_IMAGE=snl-backend:latest
+FRONTEND_IMAGE=snl-frontend:latest
 
 # -------------------------
-# STEP 1: Start local registry if not running
+# STEP 0: Check kind cluster exists
 # -------------------------
-if [ -z "$(docker ps -q -f name=local-registry)" ]; then
-    echo "Starting local registry at $REGISTRY_URL..."
-    docker run -d -p 55055:5000 --restart=always --name local-registry registry:2
-else
-    echo "Local registry already running"
+if ! kind get clusters | grep -q "$CLUSTER_NAME"; then
+    echo "Kind cluster '$CLUSTER_NAME' not found. Please create it first."
+    exit 1
 fi
 
 # -------------------------
-# STEP 2: Build Docker images
+# STEP 1: Build Docker images
 # -------------------------
 echo "Building backend image..."
-docker build -t snl-backend:latest ./backend
-docker tag snl-backend:latest $BACKEND_IMAGE
+docker build -t $BACKEND_IMAGE ./backend
 
 echo "Building frontend image..."
-docker build -t snl-frontend:latest ./frontend
-docker tag snl-frontend:latest $FRONTEND_IMAGE
+docker build -t $FRONTEND_IMAGE ./frontend
 
 # -------------------------
-# STEP 3: Push images to local registry
+# STEP 2: Load images into kind
 # -------------------------
-echo "Pushing backend image to local registry..."
-docker push $BACKEND_IMAGE
-
-echo "Pushing frontend image to local registry..."
-docker push $FRONTEND_IMAGE
+echo "Loading images into kind cluster '$CLUSTER_NAME'..."
+kind load docker-image $BACKEND_IMAGE --name $CLUSTER_NAME
+kind load docker-image $FRONTEND_IMAGE --name $CLUSTER_NAME
 
 # -------------------------
-# STEP 4: Apply Kubernetes manifests
+# STEP 3: Apply Kubernetes manifests
 # -------------------------
 echo "Applying namespace..."
 kubectl apply -f k8s/namespace.yml
@@ -53,19 +48,24 @@ kubectl apply -n $NAMESPACE -f k8s/mongo/secret.yml
 kubectl apply -n $NAMESPACE -f k8s/mongo/statefulset.yml
 kubectl apply -n $NAMESPACE -f k8s/mongo/service.yml
 
-echo "Deploy backend..."
+echo "Deploying backend..."
 kubectl apply -n $NAMESPACE -f k8s/backend/deployment.yml
 kubectl apply -n $NAMESPACE -f k8s/backend/service.yml
 kubectl apply -n $NAMESPACE -f k8s/backend/hpa.yml
 
-echo "Deploy frontend..."
+echo "Deploying frontend..."
 kubectl apply -n $NAMESPACE -f k8s/frontend/deployment.yml
 kubectl apply -n $NAMESPACE -f k8s/frontend/service.yml
 
-echo "Deploy ingress..."
-kubectl apply -n $NAMESPACE -f k8s/ingress.yml
+# echo "Deploying ingress..."
+# kubectl apply -n $NAMESPACE -f k8s/ingress.yml
 
 # -------------------------
-# STEP 5: Done
+# STEP 4: Done
 # -------------------------
 echo "✅ Deployment complete!"
+
+# -------------------------
+# STEP 5: Setup Istio service mesh
+# -------------------------
+./setup-istio.sh
