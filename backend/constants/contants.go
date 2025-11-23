@@ -24,4 +24,6 @@ var ResponseTypes = struct {
 	ChatMessage: "chatMessage",
 }
 
+var RedisChannelPrefix = "game-"
+var RedisChannelSuffix = "-events"
 var AuthToken = "token"

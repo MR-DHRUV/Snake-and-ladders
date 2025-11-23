@@ -165,11 +165,11 @@ func GetGames(user_id string, page, limit int) (*model.GetGamesResponse, error) 
 	return repository.GetGames(user_id, page, limit)
 }
 
-// func GetGameById(gameId string) (*model.Game, error) {
-// 	game, err := repository.GetGameById(gameId)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+func GetGameById(game_id string) (*model.Game, error) {
+	game, err := redis.GetGameById(game_id)
+	if err != nil {
+		return nil, err
+	}
 
-// 	return game, nil
-// }
+	return game, nil
+}

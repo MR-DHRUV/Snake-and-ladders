@@ -61,6 +61,16 @@ type Game struct {
 	Messages    []utils.ChatMessage `bson:"-" json:"-"`
 }
 
+type GameEvent struct {
+	Type string      `json:"type"`
+	Data interface{} `json:"data"`
+}
+
+type GameRequest struct {
+	Action  string  `json:"action"`
+	Message *string `json:"message,omitempty"`
+}
+
 type GameResponse struct {
 	Id      string    `json:"_id" bson:"_id"`
 	Date    string    `json:"date" bson:"date"`

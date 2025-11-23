@@ -8,13 +8,9 @@ import (
 	"github.com/MR-DHRUV/snake_and_ladders/repository"
 	"github.com/MR-DHRUV/snake_and_ladders/transport"
 	"github.com/MR-DHRUV/snake_and_ladders/utils"
+	"github.com/MR-DHRUV/snake_and_ladders/model"
 	"github.com/gorilla/websocket"
 )
-
-type GameRequest struct {
-	Action string `json:"action"`
-	Message *string `json:"message,omitempty"`
-}
 
 var upgrader = transport.Upgrader
 var connectionManager = transport.GetConnectionManager()
@@ -60,7 +56,7 @@ func handleMessages(conn *websocket.Conn, gameId, userId string) {
 	}()
 
 	for {
-		var msg GameRequest
+		var msg model.GameRequest
 		err := conn.ReadJSON(&msg)
 		if err != nil {
 			utils.GetLogger().Error("Error reading WebSocket message: %v", err)
@@ -69,6 +65,7 @@ func handleMessages(conn *websocket.Conn, gameId, userId string) {
 
 		utils.GetLogger().Info("Received message: %+v", msg)
 
+		// TODO: MOVE THIS UP
 		user, err := repository.GetUserById(userId)
 		if err != nil {
 			user.Name = userId

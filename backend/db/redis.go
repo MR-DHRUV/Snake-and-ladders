@@ -32,30 +32,3 @@ func InitRedis() {
 		utils.GetLogger().Info("Connected to Redis")
 	}
 }
-
-func GetCache(key string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), config.RedisTimeout)
-	defer cancel()
-
-	result, err := RedisClient.Get(ctx, key).Result()
-	if err == redis.Nil {
-		return "", nil // Key does not exist
-	} else if err != nil {
-		return "", err // Some other error occurred
-	}
-
-	return result, nil
-}
-
-func SetCache(key string, value string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), config.RedisTimeout)
-	defer cancel()
-
-	return RedisClient.Set(ctx, key, value, 0).Err()
-}
-
-func DeleteCache(key string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), config.RedisTimeout)
-	defer cancel()
-	return RedisClient.Del(ctx, key).Err()
-}
