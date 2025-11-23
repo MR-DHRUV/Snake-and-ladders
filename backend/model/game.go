@@ -58,7 +58,7 @@ type Game struct {
 	Winners     []*Player           `bson:"winners" json:"winners"`
 	DiceManager *DiceManager        `bson:"dice_manager" json:"dice_manager"`
 	LastTurn    *LastTurn           `bson:"last_turn" json:"last_turn,omitempty"`
-	Messages    []utils.ChatMessage `bson:"-" json:"-"`
+	Messages    []utils.ChatMessage `bson:"-" json:"messages,omitempty"`
 }
 
 type GameEvent struct {
@@ -97,7 +97,7 @@ func (g *Game) AddUser(user *User) (bool, error) {
 	// maybe someone is reconnecting
 	if existingUser {
 		g.Messages = []utils.ChatMessage{
-			getSystemMessage(fmt.Sprintf("%s rejoined the game", user.Name)),
+			getSystemMessage(fmt.Sprintf("%s joined the game", user.Name)),
 		}
 		return true, nil
 	}
