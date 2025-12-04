@@ -74,17 +74,14 @@ func JoinGame(user_id, game_id string) (*model.Game, error) {
 		return nil, err
 	}
 
-	game, err := redis.GetGameById(game_id)
-	if err != nil {
-		return nil, err
-	}
+	game, err := redis.UpdateGameWithLock(game_id, func(game *model.Game) (*model.Game, error) {
+		ok, err := game.AddUser(user)
+		if err != nil || !ok {
+			return nil, err
+		}
+		return game, nil
+	})
 
-	ok, err := game.AddUser(user)
-	if err != nil || !ok {
-		return nil, err
-	}
-
-	err = redis.SetGameById(game)
 	if err != nil {
 		return nil, err
 	}
@@ -93,17 +90,14 @@ func JoinGame(user_id, game_id string) (*model.Game, error) {
 }
 
 func RemoveUser(user_id, game_id string) (*model.Game, error) {
-	game, err := redis.GetGameById(game_id)
-	if err != nil {
-		return nil, err
-	}
+	game, err := redis.UpdateGameWithLock(game_id, func(game *model.Game) (*model.Game, error) {
+		ok := game.RemoveUser(user_id)
+		if !ok {
+			return nil, nil
+		}
+		return game, nil
+	})
 
-	ok := game.RemoveUser(user_id)
-	if !ok {
-		return nil, nil
-	}
-
-	err = redis.SetGameById(game)
 	if err != nil {
 		return nil, err
 	}
@@ -112,17 +106,14 @@ func RemoveUser(user_id, game_id string) (*model.Game, error) {
 }
 
 func StartGame(user_id, game_id string) (*model.Game, error) {
-	game, err := redis.GetGameById(game_id)
-	if err != nil {
-		return nil, err
-	}
+	game, err := redis.UpdateGameWithLock(game_id, func(game *model.Game) (*model.Game, error) {
+		err := game.StartGame(user_id)
+		if err != nil {
+			return nil, err
+		}
+		return game, nil
+	})
 
-	err = game.StartGame(user_id)
-	if err != nil {
-		return nil, err
-	}
-
-	err = redis.SetGameById(game)
 	if err != nil {
 		return nil, err
 	}
@@ -132,25 +123,21 @@ func StartGame(user_id, game_id string) (*model.Game, error) {
 
 func NextTurn(user_id, game_id string) (*model.Game, bool, error) {
 
-	game, err := redis.GetGameById(game_id)
-	if err != nil {
-		return nil, false, err
-	}
+	game, err := redis.UpdateGameWithLock(game_id, func(game *model.Game) (*model.Game, error) {
+		ok, err := game.NextTurn(user_id)
+		if err != nil || !ok {
+			return nil, err
+		}
+		return game, nil
+	})
 
-	ok, err := game.NextTurn(user_id)
 	isGameOver := game.IsGameOver()
-
-	if err != nil || !ok {
-		return nil, isGameOver, err
-	}
-
 	if isGameOver {
 		repository.UpdateGame(game) // mark status in db
 	}
 
-	err = redis.SetGameById(game)
 	if err != nil {
-		return nil, isGameOver, err
+		return nil, false, err
 	}
 
 	return game, isGameOver, nil
