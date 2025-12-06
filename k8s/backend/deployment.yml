@@ -46,6 +46,16 @@ spec:
                 secretKeyRef:
                   name: snl-secret
                   key: MongoURI
+            - name: RedisAddr
+              valueFrom:
+                secretKeyRef:
+                  name: snl-secret
+                  key: RedisAddr
+            - name: RedisPassword
+              valueFrom:
+                secretKeyRef:
+                  name: snl-secret
+                  key: RedisPassword
           resources:
             requests:
               memory: "512Mi"

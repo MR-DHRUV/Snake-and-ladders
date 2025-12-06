@@ -48,6 +48,10 @@ kubectl apply -n $NAMESPACE -f k8s/mongo/secret.yml
 kubectl apply -n $NAMESPACE -f k8s/mongo/statefulset.yml
 kubectl apply -n $NAMESPACE -f k8s/mongo/service.yml
 
+echo "Deploying Redis..."
+kubectl apply -n $NAMESPACE -f k8s/redis/deployment.yml
+kubectl apply -n $NAMESPACE -f k8s/redis/service.yml
+
 echo "Deploying backend..."
 kubectl apply -n $NAMESPACE -f k8s/backend/deployment.yml
 kubectl apply -n $NAMESPACE -f k8s/backend/service.yml
@@ -57,8 +61,9 @@ echo "Deploying frontend..."
 kubectl apply -n $NAMESPACE -f k8s/frontend/deployment.yml
 kubectl apply -n $NAMESPACE -f k8s/frontend/service.yml
 
-# echo "Deploying ingress..."
-# kubectl apply -n $NAMESPACE -f k8s/ingress.yml
+echo "Deploying ingress..."
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/cloud/deploy.yaml
+kubectl apply -n $NAMESPACE -f k8s/ingress.yml
 
 # -------------------------
 # STEP 4: Done
@@ -68,4 +73,4 @@ echo "✅ Deployment complete!"
 # -------------------------
 # STEP 5: Setup Istio service mesh
 # -------------------------
-./setup-istio.sh
+# ./setup-istio.sh
