@@ -46,7 +46,12 @@ var GoogleClientSecret = os.Getenv("GoogleClientSecret")
 var GoogleRedirectURL = os.Getenv("GoogleRedirectURL")
 
 var MongoURI = os.Getenv("MongoURI")
+var RedisAddr = os.Getenv("RedisAddr")
+var RedisPassword = os.Getenv("RedisPassword")
+var RedisDB = 0
+
 var ConnectionTimeout = 20 * time.Second
+var RedisTimeout = 5 * time.Second
 
 var WebSocketPort = 9999
 

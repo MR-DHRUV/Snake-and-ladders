@@ -52,6 +52,10 @@ echo "Deploying Redis..."
 kubectl apply -n $NAMESPACE -f k8s/redis/deployment.yml
 kubectl apply -n $NAMESPACE -f k8s/redis/service.yml
 
+# wait for redis and mongo to be ready
+kubectl wait --for=condition=ready pod -l app=redis -n $NAMESPACE
+kubectl wait --for=condition=ready pod -l app=mongo -n $NAMESPACE
+
 echo "Deploying backend..."
 kubectl apply -n $NAMESPACE -f k8s/backend/deployment.yml
 kubectl apply -n $NAMESPACE -f k8s/backend/service.yml
