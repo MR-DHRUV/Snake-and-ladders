@@ -65,9 +65,9 @@ echo "Deploying frontend..."
 kubectl apply -n $NAMESPACE -f k8s/frontend/deployment.yml
 kubectl apply -n $NAMESPACE -f k8s/frontend/service.yml
 
-echo "Deploying ingress..."
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/cloud/deploy.yaml
-kubectl apply -n $NAMESPACE -f k8s/ingress.yml
+# echo "Deploying ingress..."
+# kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/cloud/deploy.yaml
+# kubectl apply -n $NAMESPACE -f k8s/ingress.yml
 
 # -------------------------
 # STEP 4: Done
@@ -77,4 +77,4 @@ echo "✅ Deployment complete!"
 # -------------------------
 # STEP 5: Setup Istio service mesh
 # -------------------------
-# ./setup-istio.sh
+./setup-istio.sh

@@ -1,0 +1,64 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: snl-gateway
+  namespace: snl
+  annotations:
+    networking.istio.io/service-type: ClusterIP
+spec:
+  gatewayClassName: istio
+  listeners:
+    - name: http
+      port: 80
+      protocol: HTTP
+      allowedRoutes:
+        namespaces:
+          from: Same
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: snl-route
+  namespace: snl
+spec:
+  parentRefs:
+    - name: snl-gateway
+  rules:
+    # Backend HTTP API
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
+      backendRefs:
+        - name: snl-backend-service
+          port: 8081
+
+    # WebSocket route
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /ws
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
+      backendRefs:
+        - name: snl-backend-service
+          port: 9999
+
+    # Frontend (React app)
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: snl-frontend-service
+          port: 5173
