@@ -4,6 +4,7 @@
 
 ## Table of Contents
 - [Overview](#overview)
+- [Features](#features)
 - [Architecture](#architecture)
   - [System Architecture](#system-architecture)
   - [Kubernetes Architecture](#kubernetes-architecture)
@@ -11,13 +12,20 @@
 - [Backend](#backend)
 - [Game Flow](#game-flow)
 - [Deployment](#deployment)
-  - [Prerequisites](#prerequisites)
-  - [Deployment Steps](#deployment-steps)
 - [Development Setup](#development-setup)
+- [Contributing](#contributing)
 
 ## Overview
 
 This is a modern multiplayer Snakes and Ladders game with real-time gameplay. Players can create games, join existing games and chat with other players.
+
+## Features
+
+- **Real-time Multiplayer**: Play with friends or strangers in real-time using WebSockets.
+- **In-Game Chat**: Chat with other players in the game lobby.
+- **Secure Authentication**: Google OAuth integration for secure and easy login.
+- **Game State Management**: Robust game state handling with optimistic locking to prevent race conditions.
+- **Scalable Architecture**: Built with Microservices and Kubernetes in mind, utilizing Redis for Pub/Sub and caching.
 
 ## Architecture
 
@@ -28,10 +36,17 @@ graph TD
     Client[Client Browser] --> Frontend[Frontend React App]
     Frontend --> |HTTP Requests| BackendREST[Backend REST API]
     Frontend --> |WebSocket| BackendWS[Backend WebSocket]
+    
+    subgraph Data Layer
+        MongoDB[(MongoDB)]
+        Redis[(Redis)]
+    end
+
     BackendREST --> MongoDB
     BackendWS --> MongoDB
-    BackendWS --> CM[Connection Manager]
-    CM --> |Broadcasts| BackendWS
+    
+    BackendWS --> |Pub/Sub| Redis
+    BackendWS --> |Cache| Redis
 ```
 
 ### Kubernetes Architecture
@@ -54,9 +69,11 @@ graph TD
             BackendHPA[Horizontal Pod Autoscaler]
         end
         
-        subgraph "MongoDB StatefulSet"
+        subgraph "StatefulSets"
             MongoPod[MongoDB Pod]
             MongoService[MongoDB Service]
+            RedisPod[Redis Pod]
+            RedisService[Redis Service]
         end
         
         Ingress --> FrontendService
@@ -67,8 +84,11 @@ graph TD
         BackendHPA --> BackendPod1
         BackendHPA --> BackendPod2
         BackendPod1 --> MongoService
+        BackendPod1 --> RedisService
         BackendPod2 --> MongoService
+        BackendPod2 --> RedisService
         MongoService --> MongoPod
+        RedisService --> RedisPod
     end
     
     User[User] --> Ingress
@@ -91,7 +111,6 @@ The frontend is developed with React and TypeScript, ensuring a robust, type-saf
 - **State Management:** React Context API
 - **UI Components:** Shadcn
 
-
 ## Backend
 The backend is built with Go, offering exceptional performance and concurrency for real-time gameplay. It runs two dedicated HTTP servers—one serving the RESTful API and another handling WebSocket connections. The REST API manages user authentication, as well as the creation and retrieval of past games, while real-time gameplay, dice rolls, and in-game chat are seamlessly facilitated through WebSockets.
 
@@ -101,70 +120,46 @@ For authentication, the system employs JWT with RSA signing, integrating Google 
 
 The application follows a multi-layered architecture—comprising transport, service, model, repository, controller, and handler layers—to ensure clear separation of concerns and maintainability. The design adheres to sound system design principles and SOLID best practices, promoting clean, modular, and testable code.
 
+### Connect concurrency & Real-time updates
+The backend utilizes Redis for two critical functions:
+1. **Optimistic Locking:** To handle concurrent game updates safely. The `WATCH` command monitors game keys, and updates are applied using `MULTI/EXEC` transactions only if the key hasn't changed since it was watched. This prevents race conditions when multiple actions are performed simultaneously.
+2. **Pub/Sub Messaging:** For broadcasting game state updates. When a game state changes, the updated state is published to a channel, and all server instances subscribed to that channel broadcast the update to connected clients via WebSockets.
+
 ### Technology Stack
 - **Language:** Go
 - **Web Framework:** Gorilla Mux for routing
 - **WebSockets:** Gorilla WebSocket
 - **Database:** MongoDB with official Go driver
+- **Caching & Pub/Sub:** Redis
 - **Authentication:** JWT with RSA signing
 
 ### API Endpoints
 
-```mermaid
-graph TD
-    subgraph "WebSocket Endpoints"
-        WSGame[/game - Game WebSocket/]
-    end
-    
-    subgraph "WebSocket Actions"
-        JoinGame[joinGame]
-        StartGame2[startGame]
-        NextTurn[nextTurn]
-        ChatMessage[chatMessage]
-        RestartGame[restartGame]
-    end
-    
-    WSGame --> JoinGame
-    WSGame --> StartGame2
-    WSGame --> NextTurn
-    WSGame --> ChatMessage
-    WSGame --> RestartGame
-```
+**REST API**
+| Method | Endpoint | Description                 |
+| ------ | -------- | --------------------------- |
+| `GET`  | `/auth`  | Google OAuth login          |
+| `GET`  | `/user`  | Get authenticated user info |
+| `POST` | `/game`  | Create a new game           |
+| `GET`  | `/games` | Get past games              |
 
-```mermaid
-graph TD
-    subgraph "REST API"
-        Auth[/auth - Google OAuth/]
-        User[/user - Get User Info/]
-        CreateGame[/game - Create New Game/]
-        GetGames[/games - Get Past Games/]
-    end
-```
+**WebSocket API**: Endpoint: `/game`
 
-
-### WebSockets
-
-```mermaid
-sequenceDiagram
-    participant Client
-    participant Server
-    participant ConnectionManager
-    participant GameService
-    
-    Client->>Server: Connect to WebSocket
-    Server->>ConnectionManager: Register connection
-    Client->>Server: Send action (joinGame)
-    Server->>GameService: Process join game
-    GameService->>Server: Return game state
-    Server->>ConnectionManager: Broadcast to all game players
-    ConnectionManager->>Client: Send updated game state
-```
+| Action | Description                 |
+| ------ | --------------------------- |
+| `joinGame`  | Join a game                 |
+| `startGame` | Start a game                |
+| `nextTurn`  | Next player's turn          |
+| `chatMessage` | Send a chat message         |
+| `restartGame` | Starts a new game          |
 
 ## Game Flow
 
 ```mermaid
 stateDiagram-v2
     [*] --> Created: User creates game
+    Created --> Abandoned: Game abandoned
+    InProgress --> Abandoned: Game abandoned
     Created --> InProgress: Host starts game
     InProgress --> PlayerTurn: Player's turn
     PlayerTurn --> DiceRoll: Roll dice
@@ -173,7 +168,6 @@ stateDiagram-v2
     CheckWin --> InProgress: No winner
     CheckWin --> Finished: Winner(s) found
     Finished --> Created: Restart game
-    Created --> [*]: Game abandoned
 ```
 
 ## Deployment
@@ -199,6 +193,7 @@ This script:
   - namespace.yml
   - secrets.yml
   - mongo/statefulset.yml, service.yml
+  - redis/deployment.yml, service.yml
   - backend/deployment.yml, service.yml, hpa.yml
   - frontend/deployment.yml, service.yml
   - ingress.yml
@@ -208,6 +203,7 @@ This script:
 ### Prerequisites
 - Google Cloud Project with OAuth credentials configured for localhost.
 - MongoDB instance running locally or accessible remotely.
+- Redis instance running locally or accessible remotely.
 
 Clone the repository and follow the steps below to set up the development environment.
 
@@ -243,3 +239,6 @@ pnpm run dev
 - Frontend: http://localhost:5000
 - Backend REST API: http://localhost:8081
 - Backend WebSocket: ws://localhost:9999
+
+# Contributing
+We love contributions! Feel free to create a pull request 🌱
