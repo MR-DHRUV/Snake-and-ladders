@@ -5,33 +5,34 @@ import (
 
 	"github.com/MR-DHRUV/snake_and_ladders/constants"
 	gameHandler "github.com/MR-DHRUV/snake_and_ladders/handler/game"
+	"github.com/MR-DHRUV/snake_and_ladders/model"
 	"github.com/MR-DHRUV/snake_and_ladders/repository"
 	"github.com/MR-DHRUV/snake_and_ladders/transport"
 	"github.com/MR-DHRUV/snake_and_ladders/utils"
 	"github.com/gorilla/websocket"
 )
 
-type GameRequest struct {
-	Action string `json:"action"`
-	Message *string `json:"message,omitempty"`
-}
-
 var upgrader = transport.Upgrader
 var connectionManager = transport.GetConnectionManager()
 
 func GameWebSocketConnectionController(w http.ResponseWriter, r *http.Request) {
-    cookie, err := r.Cookie(constants.AuthToken)
-    if err != nil {
-        http.Error(w, "Authorization cookie missing", http.StatusUnauthorized)
-        return
-    }
+	cookie, err := r.Cookie(constants.AuthToken)
+	if err != nil {
+		http.Error(w, "Authorization cookie missing", http.StatusUnauthorized)
+		return
+	}
 
-    // Verify JWT
-    _, userId, err := utils.VerifyJWT(cookie.Value)
-    if err != nil {
-        http.Error(w, "Invalid token", http.StatusUnauthorized)
-        return
-    }
+	// Verify JWT
+	_, userId, err := utils.VerifyJWT(cookie.Value)
+	if err != nil {
+		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		return
+	}
+
+	user, err := repository.GetUserById(userId)
+	if err != nil {
+		user.Name = userId
+	}
 
 	gameId := r.URL.Query().Get("gameId")
 	if gameId == "" || userId == "" {
@@ -50,17 +51,17 @@ func GameWebSocketConnectionController(w http.ResponseWriter, r *http.Request) {
 	connectionManager.RegisterConnection(gameId, userId, conn)
 
 	// Handle incoming messages in a loop
-	go handleMessages(conn, gameId, userId)
+	go handleMessages(conn, gameId, userId, user.Name)
 }
 
-func handleMessages(conn *websocket.Conn, gameId, userId string) {
+func handleMessages(conn *websocket.Conn, gameId, userId, userName string) {
 	defer func() {
 		connectionManager.RemoveConnection(gameId, userId)
 		utils.GetLogger().Info("Closing WebSocket connection for GameID: %s, UserID: %s", gameId, userId)
 	}()
 
 	for {
-		var msg GameRequest
+		var msg model.GameRequest
 		err := conn.ReadJSON(&msg)
 		if err != nil {
 			utils.GetLogger().Error("Error reading WebSocket message: %v", err)
@@ -69,18 +70,13 @@ func handleMessages(conn *websocket.Conn, gameId, userId string) {
 
 		utils.GetLogger().Info("Received message: %+v", msg)
 
-		user, err := repository.GetUserById(userId)
-		if err != nil {
-			user.Name = userId
-		}
-
 		ctx := &gameHandler.Context{
 			Conn:              conn,
 			GameId:            gameId,
 			UserId:            userId,
 			ConnectionManager: connectionManager,
 			Message:           msg.Message,
-			UserName:          user.Name,
+			UserName:          userName,
 		}
 
 		switch msg.Action {

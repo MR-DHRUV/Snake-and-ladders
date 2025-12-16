@@ -1,4 +1,3 @@
-
 FROM node:20-alpine AS builder
 
 WORKDIR /app
@@ -9,6 +8,10 @@ RUN corepack enable
 # Copy only package files first (for better caching)
 COPY pnpm-lock.yaml package.json ./
 
+# Create .npmrc to ensure hoisted node_modules structure
+RUN echo "node-linker=hoisted" > .npmrc
+
+# Install all dependencies
 RUN pnpm install --frozen-lockfile
 
 # Copy source files

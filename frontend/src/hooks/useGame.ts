@@ -10,165 +10,116 @@ import type { ChatMessage } from '@/types/chat';
 
 
 export function useGame(gameId: string) {
-    const { data: user } = useQuery<User>({
-        queryKey: ['user'],
-    });
-
+    const { data: user } = useQuery<User>({ queryKey: ['user'] });
     const navigate = useNavigate();
+
     const [gameState, setGameState] = useState<GameState | null>(null);
     const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
     const [ws, setWs] = useState<WebSocket | null>(null);
-    const wsBaseUrl = (window as any).__ENV__?.VITE_WS_URL || import.meta.env.VITE_WS_URL;
 
-    function sendChatMessage(message: string) {
-        sendMessage({
-            action: ActionTypes.ChatMessage,
-            message: message,
-        });
-    }
-
-    function startGame() {
-        sendMessage({
-            action: ActionTypes.StartGame,
-        });
-    }
-
-    function restartGame() {
-        sendMessage({
-            action: ActionTypes.RestartGame,
-        });
-    }
-
-    function joinGame() {
-        sendMessage({
-            action: ActionTypes.JoinGame,
-        });
-    }
-
-    function nextTurn() {
-        sendMessage({
-            action: ActionTypes.NextTurn,
-        });
-    }
-
-    function sendMessage(message: { action: string;[key: string]: string }) {
-        if (!ws) {
-            console.log('WebSocket is null or undefined.');
-            return;
-        }
-
-        if (ws && ws.readyState === WebSocket.OPEN) {
-            console.log('Sending message to WebSocket:', message);
-            ws.send(JSON.stringify(message));
-        }
-    }
+    const wsBaseUrl =
+        (window as any).__ENV__?.VITE_WS_URL || import.meta.env.VITE_WS_URL;
 
     useEffect(() => {
         if (!user) return;
+        let reconnectTimeout: number | null = null;
+        let socket: WebSocket | null = null;
 
-        const wsUrl = `${wsBaseUrl}/game?gameId=${gameId}&userId=${user._id}`;
+        const connect = () => {
+            const wsUrl = `${wsBaseUrl}/game?gameId=${gameId}&userId=${user._id}`;
+            socket = new WebSocket(wsUrl);
+            setWs(socket);
 
-        // Initialize WebSocket connection
-        const socket = new WebSocket(wsUrl);
+            socket.onopen = () => {
+                console.log("WebSocket connected");
+                socket!.send(JSON.stringify({ action: "joinGame" }));
+            };
 
-        socket.onopen = () => {
-            console.log('WebSocket connection established on', wsUrl);
-            socket.send(JSON.stringify({ action: 'joinGame' }));
-        };
+            socket.onmessage = (event) => {
+                const resp = JSON.parse(event.data);
 
-        // Listen for messages from WebSocket (GameState type messages)
-        socket.onmessage = (event) => {
-            console.log(event.data)
-            const resp = JSON.parse(event.data);
-            console.log('received data:', resp);
-
-            if (resp?.status === 500) {
-                handleInGameError({
-                    message: `Something went wrong.`,
-                    description: `The game you are trying to join may not exist or is currently unavailable.`,
-                    duration: 5000,
-                });
-                navigate('/');
-                return;
-            }
-
-            switch (resp.data?.status) {
-                case 401:
-                    handleUnauthorized(navigate);
-                    return;
-                case 403:
-                    handleInGameError({
-                        message: `It looks like it's not your turn yet.`,
-                        description: `Please wait for your turn to play.`,
-                    });
-                    return;
-                case 404:
-                    handleInGameError({
-                        message: `Game not found`,
-                        description: `Please double check the game ID.`,
-                    });
-                    // TODO: Navigate to a 404 game page or similar
-                    navigate('/');
-                    return;
-                case 500:
+                if (resp?.status === 500) {
                     handleInGameError({
                         message: `Something went wrong.`,
-                        description: `It's not you it's us. We're trying to make it alright.`,
+                        description: `The game may not exist or is currently unavailable.`,
+                        duration: 5000,
                     });
+                    navigate("/");
                     return;
-                default:
-                    break;
-            }
+                }
 
-            switch (resp.type) {
-                case ResponseTypes.GameState:
-                    setGameState(resp.data);
+                switch (resp?.data?.status) {
+                    case 401:
+                        handleUnauthorized(navigate);
+                        return;
+                    case 403:
+                        handleInGameError({
+                            message: `Not your turn`,
+                            description: `Wait for your turn.`,
+                        });
+                        return;
+                    case 404:
+                        handleInGameError({
+                            message: `Game not found`,
+                            description: `Check your game ID`,
+                        });
+                        navigate("/");
+                        return;
+                    case 500:
+                        handleInGameError({
+                            message: `Something went wrong.`,
+                            description: `It's not you it's us. We're trying to make it alright.`,
+                        });
+                        return;
+                }
+
+                switch (resp.type) {
+                    case ResponseTypes.GameState:
+                        setGameState(resp.data);
                     setChatMessages((prev) => [...prev, ...resp.data.messages]);
-                    break;
-                case ResponseTypes.ChatMessage:
+                        break;
+                    case ResponseTypes.ChatMessage:
                     setChatMessages((prev) => [...prev, resp.data]);
-                    break;
-                case ResponseTypes.NextGame:
-                    navigate(`/game/${resp.data.game_id}`);
-                    break;
-                default:
-                    break;
-            }
+                        break;
+                    case ResponseTypes.NextGame:
+                        navigate(`/game/${resp.data.game_id}`);
+                        break;
+                }
+            };
+
+            socket.onerror = () => {
+                console.log("WebSocket error — will attempt reconnect");
+            };
+
+            socket.onclose = () => {
+                console.log("WebSocket closed — reconnecting in 1s...");
+                reconnectTimeout = window.setTimeout(() => {
+                    connect();
+                }, 1000);
+            };
         };
 
-        socket.onerror = (error) => {
-            console.error('WebSocket error:', error);
-        };
+        connect();
 
-        socket.onclose = () => {
-            console.log('WebSocket connection closed');
-        };
-
-        socket.onerror = (error) => {
-            console.error('WebSocket error:', error);
-        };
-
-        socket.onclose = () => {
-            console.log('WebSocket connection closed');
-        };
-
-        setWs(socket);
-
-        // Cleanup WebSocket connection when component unmounts or hook reruns
         return () => {
-            if (socket) {
-                socket.close();
-            }
+            if (socket) socket.close();
+            if (reconnectTimeout) clearTimeout(reconnectTimeout);
         };
     }, [gameId, user]);
+
+    function sendMessage(message: { action: string;[key: string]: any }) {
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        ws.send(JSON.stringify(message));
+    }
 
     return {
         gameState,
         chatMessages,
-        sendChatMessage,
-        startGame,
-        restartGame,
-        joinGame,
-        nextTurn,
-    }
+        sendChatMessage: (msg: string) =>
+            sendMessage({ action: ActionTypes.ChatMessage, message: msg }),
+        startGame: () => sendMessage({ action: ActionTypes.StartGame }),
+        restartGame: () => sendMessage({ action: ActionTypes.RestartGame }),
+        joinGame: () => sendMessage({ action: ActionTypes.JoinGame }),
+        nextTurn: () => sendMessage({ action: ActionTypes.NextTurn }),
+    };
 }

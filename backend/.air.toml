@@ -1,0 +1,5 @@
+cmd = ["go", "run", "main.go"]
+
+# Watch all files except the temp build dir
+bin = "tmp/main.exe"
+exclude_dir = ["tmp"]

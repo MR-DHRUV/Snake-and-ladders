@@ -8,12 +8,16 @@ import (
 
 	"github.com/MR-DHRUV/snake_and_ladders/db"
 	"github.com/MR-DHRUV/snake_and_ladders/routes"
-	"github.com/MR-DHRUV/snake_and_ladders/transport"
 	"github.com/MR-DHRUV/snake_and_ladders/utils"
+	"github.com/MR-DHRUV/snake_and_ladders/transport"
+	controller "github.com/MR-DHRUV/snake_and_ladders/controller/ws"
 )
 
 func main() {
+	// Init Db connections
 	db.InitMongo()
+	db.InitRedis()
+
 	utils.GetLogger().Info("Connected to MongoDB")
 
 	var wg sync.WaitGroup
@@ -33,6 +37,14 @@ func main() {
 		utils.GetLogger().Info("Starting WebSocket server...")
 		transport.GetConnectionManager(); // init conncection manager
 		routes.StartWebSocketServer();
+	}()
+
+	// Start Redis Subscriber
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		utils.GetLogger().Info("Starting Redis Subscriber...")
+		controller.StartGameEventSubscriber()
 	}()
 
 	// Handle graceful shutdown

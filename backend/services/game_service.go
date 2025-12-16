@@ -6,6 +6,7 @@ import (
 	"github.com/MR-DHRUV/snake_and_ladders/config"
 	"github.com/MR-DHRUV/snake_and_ladders/model"
 	"github.com/MR-DHRUV/snake_and_ladders/repository"
+	redis "github.com/MR-DHRUV/snake_and_ladders/repository/redis"
 	"github.com/MR-DHRUV/snake_and_ladders/utils"
 )
 
@@ -15,18 +16,10 @@ func CreateNewGame(
 	maxWinners,
 	diceCount int) (*model.Game, error) {
 
-	utils.GetLogger().Info("Creating new game with parameters: "+
-		"CreatorId: %s, "+
-		"MaxPlayers: %d, MaxWinners: %d, DiceCount: %d",
-		creatorId,
-		maxPlayers, maxWinners, diceCount)
-
 	creator, err := repository.GetUserById(creatorId)
 	if err != nil {
 		return nil, err
 	}
-
-	utils.GetLogger().Info("Fetched creator user: %s", creator.Name)
 
 	game := model.NewGame(
 		creator,
@@ -35,10 +28,17 @@ func CreateNewGame(
 		diceCount,
 	)
 
-	utils.GetLogger().Info("Creating new game with ID: %s", game.Id)
-
 	updatedGame, err := repository.CreateGame(game)
 	if err != nil {
+		return nil, err
+	}
+
+	game.Id = updatedGame.Id // Id is mongo generated Id
+
+	// Save the game to redis
+	err = redis.SetGameById(game)
+	if err != nil {
+		utils.GetLogger().Error("Failed to cache game in Redis: %v", err)
 		return nil, err
 	}
 
@@ -47,18 +47,24 @@ func CreateNewGame(
 
 func CreateGameFromLastGame(game_id string) (*string, error) {
 
-	lastGame, err := repository.GetGameById(game_id)
+	lastGame, err := redis.GetGameById(game_id)
 	if err != nil {
 		return nil, err
 	}
 
 	game := model.NewGameFromLastGame(lastGame)
-	game, err = repository.CreateGame(game)
+	updatedGame, err := repository.CreateGame(game)
 	if err != nil {
 		return nil, err
 	}
 
-	return &game.Id, nil;
+	game.Id = updatedGame.Id
+	err = redis.SetGameById(game)
+	if err != nil {
+		return nil, err
+	}
+
+	return &game.Id, nil
 }
 
 func JoinGame(user_id, game_id string) (*model.Game, error) {
@@ -68,80 +74,73 @@ func JoinGame(user_id, game_id string) (*model.Game, error) {
 		return nil, err
 	}
 
-	game, err := repository.GetGameById(game_id)
+	game, err := redis.UpdateGameWithLock(game_id, func(game *model.Game) (*model.Game, error) {
+		ok, err := game.AddUser(user)
+		if err != nil || !ok {
+			return nil, err
+		}
+		return game, nil
+	})
+
 	if err != nil {
 		return nil, err
 	}
 
-	ok, err := game.AddUser(user)
-	if err != nil || !ok {
-		return nil, err
-	}
-
-	updatedGame, err := repository.UpdateGame(game)
-	if err != nil {
-		return nil, err
-	}
-
-	return updatedGame, nil
+	return game, nil
 }
 
 func RemoveUser(user_id, game_id string) (*model.Game, error) {
-	game, err := repository.GetGameById(game_id)
+	game, err := redis.UpdateGameWithLock(game_id, func(game *model.Game) (*model.Game, error) {
+		ok := game.RemoveUser(user_id)
+		if !ok {
+			return nil, nil
+		}
+		return game, nil
+	})
+
 	if err != nil {
 		return nil, err
 	}
 
-	ok := game.RemoveUser(user_id)
-	if !ok {
-		return nil, nil
-	}
-
-	updatedGame, err := repository.UpdateGame(game)
-	if err != nil {
-		return nil, err
-	}
-
-	return updatedGame, nil
+	return game, nil
 }
 
 func StartGame(user_id, game_id string) (*model.Game, error) {
-	game, err := repository.GetGameById(game_id)
+	game, err := redis.UpdateGameWithLock(game_id, func(game *model.Game) (*model.Game, error) {
+		err := game.StartGame(user_id)
+		if err != nil {
+			return nil, err
+		}
+		return game, nil
+	})
+
 	if err != nil {
 		return nil, err
 	}
 
-	err = game.StartGame(user_id)
-	if err != nil {
-		return nil, err
-	}
-
-	updatedGame, err := repository.UpdateGame(game)
-	if err != nil {
-		return nil, err
-	}
-
-	return updatedGame, nil
+	return game, nil
 }
 
 func NextTurn(user_id, game_id string) (*model.Game, bool, error) {
 
-	game, err := repository.GetGameById(game_id)
+	game, err := redis.UpdateGameWithLock(game_id, func(game *model.Game) (*model.Game, error) {
+		ok, err := game.NextTurn(user_id)
+		if err != nil || !ok {
+			return nil, err
+		}
+		return game, nil
+	})
+
+	isGameOver := game.IsGameOver()
+	if isGameOver {
+		repository.UpdateGame(game) // mark status in db
+	}
+
 	if err != nil {
 		return nil, false, err
 	}
 
-	ok, isGameOver, err := game.NextTurn(user_id)
-	if err != nil || !ok {
-		return nil, isGameOver, err
-	}
-
-	updatedGame, err := repository.UpdateGame(game)
-	if err != nil {
-		return nil, isGameOver, err
-	}
-
-	return updatedGame, isGameOver, nil
+	return game, isGameOver, nil
 }
 
 func GetGames(user_id string, page, limit int) (*model.GetGamesResponse, error) {
@@ -153,8 +152,8 @@ func GetGames(user_id string, page, limit int) (*model.GetGamesResponse, error) 
 	return repository.GetGames(user_id, page, limit)
 }
 
-func GetGameById(gameId string) (*model.Game, error) {
-	game, err := repository.GetGameById(gameId)
+func GetGameById(game_id string) (*model.Game, error) {
+	game, err := redis.GetGameById(game_id)
 	if err != nil {
 		return nil, err
 	}

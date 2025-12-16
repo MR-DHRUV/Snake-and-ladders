@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: snl-frontend-container
-          image: localhost:55055/snl-frontend:latest
+          image: snl-frontend:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

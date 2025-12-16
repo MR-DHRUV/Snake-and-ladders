@@ -1,0 +1,7 @@
+.pnpm-store
+.pnpm
+.git
+.gitignore
+dist
+node_modules
+Dockerfile

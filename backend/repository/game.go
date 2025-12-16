@@ -15,22 +15,12 @@ import (
 )
 
 func CreateGame(game *model.Game) (*model.Game, error) {
-
 	newGame := bson.M{
-		"total_cells":  game.TotalCells,
-		"max_players":  game.MaxPlayers,
-		"max_winners":  game.MaxWinners,
-		"dice_count":   game.DiceCount,
-		"game_board":   game.GameBoard,
 		"status":       game.Status,
-		"current_turn": game.CurrentTurn,
 		"players":      game.Players,
 		"winners":      game.Winners,
-		"dice_manager": game.DiceManager,
 		"creator":      game.Creator,
-		"last_turn":    game.LastTurn,
 		"date":         time.Now().UTC().Format(time.RFC3339),
-		"messages":     game.Messages,
 	}
 
 	// Insert the game into the collection
@@ -64,19 +54,11 @@ func UpdateGame(game *model.Game) (*model.Game, error) {
 
 	filter := bson.M{"_id": objectID}
 	newGame := bson.M{
-		"total_cells":  game.TotalCells,
-		"max_players":  game.MaxPlayers,
-		"max_winners":  game.MaxWinners,
-		"dice_count":   game.DiceCount,
-		"game_board":   game.GameBoard,
 		"status":       game.Status,
-		"current_turn": game.CurrentTurn,
 		"players":      game.Players,
 		"winners":      game.Winners,
-		"dice_manager": game.DiceManager,
 		"creator":      game.Creator,
-		"last_turn":    game.LastTurn,
-		"messages":     game.Messages,
+		"date":         time.Now().UTC().Format(time.RFC3339),
 	}
 
 	// Prepare the update query
